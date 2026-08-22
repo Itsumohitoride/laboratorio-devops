@@ -86,7 +86,7 @@ jobs:
       - name: Análisis de dependencias con Snyk
         if: env.SNYK_TOKEN != ''
         continue-on-error: true
-        uses: snyk/actions/npm@master
+        uses: snyk/actions/node@master
         with:
           args: --severity-threshold=high --json-file-output=security-reports/snyk-deps.json
 
