@@ -33,3 +33,10 @@ bin/
 ###node###
 node_modules/
 .env
+
+###security###
+# Reportes generados por el job security-analysis del workflow CI.
+# Decision explicita: NO se versionan. La evidencia se conserva como artefacto
+# de la ejecucion en GitHub Actions (ver SECURITY_SETUP.md) y se cita en el
+# informe de seguridad.
+security-reports/

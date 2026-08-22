@@ -16,16 +16,16 @@ jobs:
     steps:
 
       - name: Checkout del código
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
 
       - name: Instalar dependencias
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Ejecutar pruebas automatizadas
         run: npm test
@@ -34,3 +34,123 @@ jobs:
       # estilo y errores de código sin ejecutarlo; complementa la suite de tests.
       - name: Análisis estático con ESLint
         run: npm run lint
+
+  # Análisis de seguridad (Criterio 2 de la rúbrica): integra Snyk y
+  # SonarQube/SonarCloud con resultados visibles.
+  #
+  # Comportamiento ante fallo (justificación): las herramientas externas
+  # dependen de secrets del repo (SNYK_TOKEN, SONAR_TOKEN). Para que el CI no
+  # se rompa cuando no están configurados o el servicio falla:
+  #   - Si el secret no existe, el paso se salta y se emite un ::warning:: en
+  #     el resumen del job (guía de configuración en SECURITY_SETUP.md).
+  #   - Cada paso de análisis usa continue-on-error: un hallazgo o una caída
+  #     del servicio NO rompe el pipeline; la evidencia queda siempre guardada
+  #     como artefacto para el informe de seguridad.
+  security-analysis:
+
+    runs-on: ubuntu-latest
+
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      # Host de SonarQube; por defecto SonarCloud si no se define el secret.
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'https://sonarcloud.io' }}
+
+    steps:
+
+      - name: Checkout del código
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci --ignore-scripts
+
+      - name: Crear directorio de reportes
+        run: mkdir -p security-reports
+
+      # Auditoría nativa de npm: SIEMPRE se ejecuta porque no requiere
+      # credenciales. El JSON queda como evidencia aunque audit devuelva
+      # código distinto de 0 (hay vulnerabilidades).
+      - name: Auditoría de dependencias con npm audit
+        continue-on-error: true
+        run: npm audit --json > security-reports/npm-audit.json
+
+      # Snyk: detección de vulnerabilidades en dependencias con umbral high.
+      # Solo corre si existe el secret SNYK_TOKEN. Snyk solo publica este
+      # action apuntando a su rama master, por lo que se fija el commit.
+      - name: Análisis de dependencias con Snyk
+        if: env.SNYK_TOKEN != ''
+        continue-on-error: true
+        uses: snyk/actions/node@12140f4059e244892ae643824a95459a102120dd # master
+        with:
+          args: --severity-threshold=high --json-file-output=security-reports/snyk-deps.json
+
+      # SonarQube/SonarCloud: análisis estático profundo con Quality Gate.
+      # Solo corre si existe el secret SONAR_TOKEN (host configurable vía
+      # SONAR_HOST_URL, por defecto https://sonarcloud.io). La configuración
+      # del scanner vive en sonar-project.properties.
+      - name: Análisis estático con SonarQube/SonarCloud
+        if: env.SONAR_TOKEN != ''
+        continue-on-error: true
+        uses: sonarsource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'https://sonarcloud.io' }}
+
+      # Evidencia SIEMPRE subida como artefacto, haya corrido uno, varios o
+      # ningún análisis externo (if-no-files-found: warn avisa sin romper).
+      - name: Subir reportes de seguridad como artefacto
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: security-reports
+          path: security-reports/
+          if-no-files-found: warn
+
+      # Resumen visible en el job summary de la ejecución: qué análisis
+      # corrieron y cuáles se saltaron (con ::warning:: en el log si falta un
+      # secret), para cumplir "resultados visibles" sin depender del dashboard
+      # externo.
+      - name: Resumen de resultados de seguridad
+        if: always()
+        run: |
+          {
+            echo "## Resultados del análisis de seguridad"
+            echo ""
+            echo "| Herramienta | Estado | Dónde ver el resultado |"
+            echo "|-------------|--------|------------------------|"
+            if [ -f security-reports/npm-audit.json ]; then
+              echo '| npm audit | ejecutado | Artefacto `security-reports/npm-audit.json` |'
+            else
+              echo '| npm audit | sin reporte | Revisar log del paso correspondiente |'
+            fi
+            if [ -n "$SNYK_TOKEN" ]; then
+              if [ -f security-reports/snyk-deps.json ]; then
+                echo '| Snyk | ejecutado | Artefacto `security-reports/snyk-deps.json` + dashboard snyk.io |'
+              else
+                echo '| Snyk | ejecutado sin JSON | Revisar log del paso correspondiente |'
+              fi
+            else
+              echo '| Snyk | OMITIDO (falta secret SNYK_TOKEN) | Guía: SECURITY_SETUP.md |'
+            fi
+            if [ -n "$SONAR_TOKEN" ]; then
+              echo '| SonarQube/SonarCloud | ejecutado | Quality Gate en log + dashboard SonarCloud |'
+            else
+              echo '| SonarQube/SonarCloud | OMITIDO (falta secret SONAR_TOKEN) | Guía: SECURITY_SETUP.md |'
+            fi
+            echo ''
+            echo 'El artefacto `security-reports` contiene los JSON de evidencia de esta ejecución.'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo '::warning::Análisis Snyk OMITIDO: el secret SNYK_TOKEN no está configurado. Guía de configuración en SECURITY_SETUP.md.'
+          fi
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo '::warning::Análisis SonarQube/SonarCloud OMITIDO: el secret SONAR_TOKEN no está configurado. Guía de configuración en SECURITY_SETUP.md.'
+          fi
