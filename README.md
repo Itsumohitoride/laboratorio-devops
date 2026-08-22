@@ -120,12 +120,19 @@ En <http://localhost:8080/view/all/newJob>:
 - Branch Specifier: `*/main`
 - Script Path: `Jenkinsfile`
 
+## Monitoreo
+
+El stack de observabilidad (Prometheus + Grafana) levanta la aplicación junto a
+un scraper de métricas y un dashboard provisionado automáticamente. Ver
+[monitoring/README.md](monitoring/README.md).
+
 ## Estructura
 
 ```
 ├── server.js                # Servidor Express
 ├── public/                  # Frontend estático
 ├── test/                    # Pruebas automatizadas (Jest)
+├── monitoring/              # Stack monitoreo (Prometheus + Grafana)
 ├── Dockerfile               # Imagen Docker
 ├── Jenkinsfile              # Pipeline CD (Jenkins)
 ├── .github/workflows/ci.yml # Pipeline CI (GitHub Actions)

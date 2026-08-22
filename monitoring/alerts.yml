@@ -1,0 +1,12 @@
+# Reglas de alerta del laboratorio DevOps.
+groups:
+  - name: app-alerts
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instancia caida"
+          description: "La instancia {{ $labels.instance }} del job {{ $labels.job }} lleva mas de 1 minuto sin responder."
