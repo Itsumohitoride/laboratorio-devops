@@ -1,0 +1,26 @@
+# ============================================================================
+# service.yml — Service ClusterIP del Deployment laboratorio-devops
+#
+# Expone internamente los pods con label app.kubernetes.io/name
+# (mismo label que la plantilla del Deployment). El puerto 80 apunta al
+# targetPort 3000, donde escucha la app (ver Dockerfile y server.js).
+# ============================================================================
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: laboratorio-devops
+  labels:
+    app.kubernetes.io/name: laboratorio-devops
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: laboratorio-devops
+
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: laboratorio-devops
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
