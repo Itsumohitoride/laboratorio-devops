@@ -16,16 +16,16 @@ jobs:
     steps:
 
       - name: Checkout del código
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
 
       - name: Instalar dependencias
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Ejecutar pruebas automatizadas
         run: npm test
@@ -59,18 +59,18 @@ jobs:
     steps:
 
       - name: Checkout del código
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
 
       - name: Instalar dependencias
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Crear directorio de reportes
         run: mkdir -p security-reports
@@ -83,12 +83,12 @@ jobs:
         run: npm audit --json > security-reports/npm-audit.json
 
       # Snyk: detección de vulnerabilidades en dependencias con umbral high.
-      # Solo corre si existe el secret SNYK_TOKEN. La etiqueta @master es la
-      # única que publica Snyk para este action.
+      # Solo corre si existe el secret SNYK_TOKEN. Snyk solo publica este
+      # action apuntando a su rama master, por lo que se fija el commit.
       - name: Análisis de dependencias con Snyk
         if: env.SNYK_TOKEN != ''
         continue-on-error: true
-        uses: snyk/actions/node@master
+        uses: snyk/actions/node@12140f4059e244892ae643824a95459a102120dd # master
         with:
           args: --severity-threshold=high --json-file-output=security-reports/snyk-deps.json
 
@@ -99,7 +99,7 @@ jobs:
       - name: Análisis estático con SonarQube/SonarCloud
         if: env.SONAR_TOKEN != ''
         continue-on-error: true
-        uses: sonarsource/sonarqube-scan-action@v4
+        uses: sonarsource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'https://sonarcloud.io' }}
@@ -108,7 +108,7 @@ jobs:
       # ningún análisis externo (if-no-files-found: warn avisa sin romper).
       - name: Subir reportes de seguridad como artefacto
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: security-reports
           path: security-reports/
